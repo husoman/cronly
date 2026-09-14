@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cronly — build and read cron schedules</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#14171C;
+    --surface:#1B2027;
+    --surface-2:#20262F;
+    --text:#ECEAE4;
+    --text-dim:#9AA3AF;
+    --accent:#5EB1BF;
+    --accent-2:#E8A659;
+    --line:#2A2F38;
+    --error:#D9756A;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'IBM Plex Sans', sans-serif;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{
+    max-width:760px;
+    margin:0 auto;
+    padding:56px 24px 80px;
+  }
+  header{
+    margin-bottom:40px;
+  }
+  .mark{
+    display:inline-flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:28px;
+  }
+  .mark svg{ display:block; }
+  .mark span{
+    font-weight:600;
+    font-size:15px;
+    letter-spacing:0.01em;
+  }
+  h1{
+    font-size:28px;
+    font-weight:600;
+    margin:0 0 8px;
+    letter-spacing:-0.01em;
+  }
+  header p{
+    color:var(--text-dim);
+    font-size:15px;
+    margin:0;
+    max-width:52ch;
+  }
+
+  .mode-toggle{
+    display:flex;
+    gap:2px;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:3px;
+    width:fit-content;
+    margin-bottom:32px;
+  }
+  .mode-toggle button{
+    border:none;
+    background:transparent;
+    color:var(--text-dim);
+    font-family:inherit;
+    font-size:13px;
+    padding:8px 16px;
+    border-radius:6px;
+    cursor:pointer;
+    transition:background 0.15s, color 0.15s;
+  }
+  .mode-toggle button.active{
+    background:var(--surface-2);
+    color:var(--text);
+  }
+
+  section.panel{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:28px;
+    margin-bottom:24px;
+  }
+
+  .field-strip{
+    display:grid;
+    grid-template-columns:repeat(5, 1fr);
+    gap:1px;
+    background:var(--line);
+    border:1px solid var(--line);
+    border-radius:8px;
+    overflow:hidden;
+    margin-bottom:20px;
+  }
+  @media (max-width:640px){
+    .field-strip{ grid-template-columns:1fr; }
+  }
+  .field{
+    background:var(--surface);
+    padding:16px 14px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .field.active-field{
+    background:var(--surface-2);
+    box-shadow:inset 0 2px 0 var(--accent-2);
+  }
+  .field label{
+    font-size:11px;
+    color:var(--text-dim);
+    font-weight:500;
+  }
+  .field select{
+    background:var(--bg);
+    color:var(--text);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:7px 8px;
+    font-family:inherit;
+    font-size:13px;
+  }
+  .field input[type="text"]{
+    background:var(--bg);
+    color:var(--text);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:7px 8px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;
+    width:100%;
+  }
+  .field input[type="text"]:focus, .field select:focus{
+    outline:none;
+    border-color:var(--accent);
+  }
+  .field input.invalid{
+    border-color:var(--error);
+  }
+
+  .presets{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .presets button{
+    background:var(--bg);
+    border:1px solid var(--line);
+    color:var(--text-dim);
+    font-family:inherit;
+    font-size:12px;
+    padding:6px 12px;
+    border-radius:20px;
+    cursor:pointer;
+    transition:border-color 0.15s, color 0.15s;
+  }
+  .presets button:hover{
+    border-color:var(--accent);
+    color:var(--text);
+  }
+
+  .cron-out{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    background:var(--bg);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:16px 18px;
+    margin:24px 0 16px;
+  }
+  .cron-out code{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:18px;
+    color:var(--accent);
+    letter-spacing:0.02em;
+  }
+  .copy-btn{
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    color:var(--text);
+    font-family:inherit;
+    font-size:12px;
+    padding:8px 14px;
+    border-radius:6px;
+    cursor:pointer;
+    white-space:nowrap;
+    transition:border-color 0.15s;
+  }
+  .copy-btn:hover{ border-color:var(--accent); }
+  .copy-btn.copied{ border-color:var(--accent-2); color:var(--accent-2); }
+
+  .explain{
+    font-size:15px;
+    color:var(--text);
+    margin-bottom:20px;
+  }
+  .explain .warn{ color:var(--error); font-size:13px; }
+
+  .next-runs h2{
+    font-size:12px;
+    text-transform:none;
+    color:var(--text-dim);
+    font-weight:500;
+    margin:0 0 10px;
+  }
+  .next-runs ul{
+    list-style:none;
+    margin:0;
+    padding:0;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  .next-runs li{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;
+    color:var(--text-dim);
+    display:flex;
+    gap:10px;
+  }
+  .next-runs li span.n{
+    color:var(--accent);
+    width:16px;
+  }
+
+  .reverse-input{
+    display:flex;
+    gap:10px;
+    margin-bottom:20px;
+  }
+  .reverse-input input{
+    flex:1;
+    background:var(--bg);
+    color:var(--text);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:12px 14px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:15px;
+  }
+  .reverse-input input:focus{ outline:none; border-color:var(--accent); }
+
+  footer{
+    color:var(--text-dim);
+    font-size:12px;
+    text-align:center;
+    margin-top:48px;
+  }
+  footer a{ color:var(--text-dim); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="mark">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+        <circle cx="14" cy="14" r="12" stroke="#5EB1BF" stroke-width="2"/>
+        <path d="M14 8V14L18 17" stroke="#E8A659" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span>Cronly</span>
+    </div>
+    <h1>Build or read a cron schedule</h1>
+    <p>Set the five fields and get a valid cron string, a plain-English explanation, and the next run times — or paste an existing expression to decode it.</p>
+  </header>
+
+  <div class="mode-toggle">
+    <button id="tab-build" class="active">Build</button>
+    <button id="tab-decode">Decode</button>
+  </div>
+
+  <section class="panel" id="build-panel">
+    <div class="field-strip">
+      <div class="field" data-field="minute">
+        <label>Minute</label>
+        <input type="text" id="in-minute" value="*" spellcheck="false">
+      </div>
+      <div class="field" data-field="hour">
+        <label>Hour</label>
+        <input type="text" id="in-hour" value="*" spellcheck="false">
+      </div>
+      <div class="field" data-field="dom">
+        <label>Day of month</label>
+        <input type="text" id="in-dom" value="*" spellcheck="false">
+      </div>
+      <div class="field" data-field="month">
+        <label>Month</label>
+        <input type="text" id="in-month" value="*" spellcheck="false">
+      </div>
+      <div class="field" data-field="dow">
+        <label>Day of week</label>
+        <input type="text" id="in-dow" value="*" spellcheck="false">
+      </div>
+    </div>
+
+    <div class="presets">
+      <button data-cron="* * * * *">Every minute</button>
+      <button data-cron="*/15 * * * *">Every 15 min</button>
+      <button data-cron="0 * * * *">Hourly</button>
+      <button data-cron="0 0 * * *">Daily at midnight</button>
+      <button data-cron="0 9 * * 1-5">Weekdays at 9am</button>
+      <button data-cron="0 0 * * 0">Weekly on Sunday</button>
+      <button data-cron="0 0 1 * *">Monthly on the 1st</button>
+    </div>
+
+    <div class="cron-out">
+      <code id="cron-string">* * * * *</code>
+      <button class="copy-btn" id="copy-btn">Copy</button>
+    </div>
+
+    <div class="explain" id="explain-build">Runs every minute.</div>
+
+    <div class="next-runs">
+      <h2>Next 5 runs</h2>
+      <ul id="runs-build"></ul>
+    </div>
+  </section>
+
+  <section class="panel" id="decode-panel" style="display:none;">
+    <div class="reverse-input">
+      <input type="text" id="decode-input" placeholder="0 9 * * 1-5" spellcheck="false">
+    </div>
+    <div class="explain" id="explain-decode"></div>
+    <div class="next-runs">
+      <h2>Next 5 runs</h2>
+      <ul id="runs-decode"></ul>
+    </div>
+  </section>
+
+  <footer>
+    Standard 5-field cron syntax (minute hour day-of-month month day-of-week). Times shown in your local timezone.
+  </footer>
+</div>
+
+<script>
+(function(){
+  const FIELD_BOUNDS = {
+    minute: [0,59], hour: [0,23], dom: [1,31], month: [1,12], dow: [0,6]
+  };
+  const MONTH_NAMES = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const DOW_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const DOW_ABBR = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  function parseFieldPart(part, min, max){
+    // returns array of numbers or throws
+    if (part === '*') {
+      const arr = [];
+      for (let i=min;i<=max;i++) arr.push(i);
+      return arr;
+    }
+    let stepMatch = part.match(/^(.+)\/(\d+)$/);
+    let step = 1;
+    let base = part;
+    if (stepMatch) {
+      base = stepMatch[1];
+      step = parseInt(stepMatch[2], 10);
+      if (!step || step < 1) throw new Error('bad step');
+    }
+    let rangeStart, rangeEnd;
+    if (base === '*') {
+      rangeStart = min; rangeEnd = max;
+    } else if (base.includes('-')) {
+      const [a,b] = base.split('-').map(Number);
+      if (isNaN(a) || isNaN(b) || a > b) throw new Error('bad range');
+      rangeStart = a; rangeEnd = b;
+    } else {
+      const v = Number(base);
+      if (isNaN(v)) throw new Error('bad value');
+      rangeStart = v; rangeEnd = v;
+    }
+    if (rangeStart < min || rangeEnd > max) throw new Error('out of bounds');
+    const arr = [];
+    for (let i=rangeStart; i<=rangeEnd; i+=step) arr.push(i);
+    return arr;
+  }
+
+  function parseField(str, fieldName){
+    const [min, max] = FIELD_BOUNDS[fieldName];
+    const parts = str.split(',');
+    let set = new Set();
+    for (const p of parts) {
+      const vals = parseFieldPart(p.trim(), min, max);
+      vals.forEach(v => set.add(v));
+    }
+    if (set.size === 0) throw new Error('empty field');
+    return set;
+  }
+
+  function parseCron(cronStr){
+    const parts = cronStr.trim().split(/\s+/);
+    if (parts.length !== 5) throw new Error('Cron needs exactly 5 fields (minute hour day month weekday)');
+    const [minuteStr, hourStr, domStr, monthStr, dowStr] = parts;
+    return {
+      minute: parseField(minuteStr, 'minute'),
+      hour: parseField(hourStr, 'hour'),
+      dom: parseField(domStr, 'dom'),
+      month: parseField(monthStr, 'month'),
+      dow: parseField(dowStr, 'dow'),
+      raw: { minuteStr, hourStr, domStr, monthStr, dowStr }
+    };
+  }
+
+  function isWildcard(str){ return str.trim() === '*'; }
+
+  function nextRuns(parsed, count){
+    const results = [];
+    let d = new Date();
+    d.setSeconds(0,0);
+    d.setMinutes(d.getMinutes()+1);
+    const domWild = isWildcard(parsed.raw.domStr);
+    const dowWild = isWildcard(parsed.raw.dowStr);
+    const limit = 4 * 365 * 24 * 60; // ~4 years of minutes as a safety cap
+    let steps = 0;
+    while (results.length < count && steps < limit) {
+      const month = d.getMonth()+1;
+      const dom = d.getDate();
+      const dow = d.getDay();
+      const hour = d.getHours();
+      const minute = d.getMinutes();
+
+      const domMatch = parsed.dom.has(dom);
+      const dowMatch = parsed.dow.has(dow);
+      let dayMatches;
+      if (domWild && dowWild) dayMatches = true;
+      else if (domWild) dayMatches = dowMatch;
+      else if (dowWild) dayMatches = domMatch;
+      else dayMatches = domMatch || dowMatch;
+
+      if (parsed.month.has(month) && dayMatches && parsed.hour.has(hour) && parsed.minute.has(minute)) {
+        results.push(new Date(d));
+        d.setMinutes(d.getMinutes()+1);
+      } else {
+        d.setMinutes(d.getMinutes()+1);
+      }
+      steps++;
+    }
+    return results;
+  }
+
+  function formatRun(d){
+    const opts = { weekday:'short', year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' };
+    return d.toLocaleString(undefined, opts);
+  }
+
+  function describeField(str, fieldName){
+    str = str.trim();
+    if (str === '*') return null;
+    const [min,max] = FIELD_BOUNDS[fieldName];
+    if (str.includes('/')) {
+      const [base, step] = str.split('/');
+      if (base === '*') return `every ${step} ${fieldName === 'minute' ? 'minutes' : fieldName === 'hour' ? 'hours' : fieldName}`;
+    }
+    return null;
+  }
+
+  function explainCron(cronStr){
+    let parsed;
+    try {
+      parsed = parseCron(cronStr);
+    } catch (e) {
+      return { text: null, error: e.message };
+    }
+    const { minuteStr, hourStr, domStr, monthStr, dowStr } = parsed.raw;
+
+    // time-of-day phrase
+    let timePhrase;
+    if (minuteStr === '*' && hourStr === '*') {
+      timePhrase = 'every minute';
+    } else if (minuteStr.includes('/') && minuteStr.startsWith('*') && hourStr === '*') {
+      timePhrase = `every ${minuteStr.split('/')[1]} minutes`;
+    } else if (hourStr.includes('/') && hourStr.startsWith('*') && minuteStr === '0') {
+      timePhrase = `every ${hourStr.split('/')[1]} hours, on the hour`;
+    } else if (hourStr === '*' && /^\d+$/.test(minuteStr)) {
+      timePhrase = `at minute ${minuteStr} of every hour`;
+    } else if (/^\d+$/.test(hourStr) && /^\d+$/.test(minuteStr)) {
+      const h = parseInt(hourStr,10), m = parseInt(minuteStr,10);
+      const ampm = h < 12 ? 'am' : 'pm';
+      const h12 = h % 12 === 0 ? 12 : h % 12;
+      timePhrase = `at ${h12}:${String(m).padStart(2,'0')}${ampm}`;
+    } else {
+      timePhrase = `at minute(s) ${minuteStr}, hour(s) ${hourStr}`;
+    }
+
+    // day phrase
+    const domWild = isWildcard(domStr);
+    const dowWild = isWildcard(dowStr);
+    let dayPhrase = '';
+    if (domWild && dowWild) {
+      dayPhrase = 'every day';
+    } else if (!domWild && dowWild) {
+      dayPhrase = `on day ${domStr} of the month`;
+    } else if (domWild && !dowWild) {
+      if (/^\d+$/.test(dowStr)) {
+        dayPhrase = `every ${DOW_NAMES[parseInt(dowStr,10)]}`;
+      } else if (dowStr.includes('-')) {
+        const [a,b] = dowStr.split('-').map(Number);
+        dayPhrase = `every ${DOW_ABBR[a]}–${DOW_ABBR[b]}`;
+      } else {
+        dayPhrase = `on weekday(s) ${dowStr}`;
+      }
+    } else {
+      dayPhrase = `on day ${domStr} of the month, or weekday ${dowStr} (whichever comes)`;
+    }
+
+    // month phrase
+    let monthPhrase = '';
+    if (monthStr !== '*') {
+      if (/^\d+$/.test(monthStr)) {
+        monthPhrase = `, in ${MONTH_NAMES[parseInt(monthStr,10)]}`;
+      } else {
+        monthPhrase = `, in month(s) ${monthStr}`;
+      }
+    }
+
+    const text = `Runs ${timePhrase}, ${dayPhrase}${monthPhrase}.`;
+    return { text, error: null, parsed };
+  }
+
+  // ---------- BUILD MODE ----------
+  const inputs = {
+    minute: document.getElementById('in-minute'),
+    hour: document.getElementById('in-hour'),
+    dom: document.getElementById('in-dom'),
+    month: document.getElementById('in-month'),
+    dow: document.getElementById('in-dow'),
+  };
+  const cronStringEl = document.getElementById('cron-string');
+  const explainBuildEl = document.getElementById('explain-build');
+  const runsBuildEl = document.getElementById('runs-build');
+  const copyBtn = document.getElementById('copy-btn');
+
+  function currentCronFromInputs(){
+    return [inputs.minute.value, inputs.hour.value, inputs.dom.value, inputs.month.value, inputs.dow.value]
+      .map(v => v.trim() || '*').join(' ');
+  }
+
+  function updateBuild(){
+    const cronStr = currentCronFromInputs();
+    cronStringEl.textContent = cronStr;
+
+    let anyInvalid = false;
+    Object.entries(inputs).forEach(([name, el]) => {
+      try {
+        parseField(el.value.trim() || '*', name);
+        el.classList.remove('invalid');
+      } catch (e) {
+        el.classList.add('invalid');
+        anyInvalid = true;
+      }
+    });
+
+    if (anyInvalid) {
+      explainBuildEl.innerHTML = '<span class="warn">One or more fields aren\'t valid cron syntax yet.</span>';
+      runsBuildEl.innerHTML = '';
+      return;
+    }
+
+    const result = explainCron(cronStr);
+    if (result.error) {
+      explainBuildEl.innerHTML = `<span class="warn">${result.error}</span>`;
+      runsBuildEl.innerHTML = '';
+      return;
+    }
+    explainBuildEl.textContent = result.text;
+    const runs = nextRuns(result.parsed, 5);
+    runsBuildEl.innerHTML = runs.map((d,i) => `<li><span class="n">${i+1}</span>${formatRun(d)}</li>`).join('');
+  }
+
+  Object.values(inputs).forEach(el => {
+    el.addEventListener('input', updateBuild);
+    el.addEventListener('focus', () => {
+      document.querySelectorAll('.field').forEach(f => f.classList.remove('active-field'));
+      el.closest('.field').classList.add('active-field');
+    });
+    el.addEventListener('blur', () => {
+      el.closest('.field').classList.remove('active-field');
+    });
+  });
+
+  document.querySelectorAll('.presets button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const [m,h,dom,mo,dow] = btn.dataset.cron.split(' ');
+      inputs.minute.value = m;
+      inputs.hour.value = h;
+      inputs.dom.value = dom;
+      inputs.month.value = mo;
+      inputs.dow.value = dow;
+      updateBuild();
+    });
+  });
+
+  copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(cronStringEl.textContent).then(() => {
+      copyBtn.textContent = 'Copied';
+      copyBtn.classList.add('copied');
+      setTimeout(() => {
+        copyBtn.textContent = 'Copy';
+        copyBtn.classList.remove('copied');
+      }, 1400);
+    });
+  });
+
+  // ---------- DECODE MODE ----------
+  const decodeInput = document.getElementById('decode-input');
+  const explainDecodeEl = document.getElementById('explain-decode');
+  const runsDecodeEl = document.getElementById('runs-decode');
+
+  function updateDecode(){
+    const val = decodeInput.value.trim();
+    if (!val) {
+      explainDecodeEl.textContent = '';
+      runsDecodeEl.innerHTML = '';
+      return;
+    }
+    const result = explainCron(val);
+    if (result.error) {
+      explainDecodeEl.innerHTML = `<span class="warn">${result.error}</span>`;
+      runsDecodeEl.innerHTML = '';
+      return;
+    }
+    explainDecodeEl.textContent = result.text;
+    const runs = nextRuns(result.parsed, 5);
+    runsDecodeEl.innerHTML = runs.map((d,i) => `<li><span class="n">${i+1}</span>${formatRun(d)}</li>`).join('');
+  }
+  decodeInput.addEventListener('input', updateDecode);
+
+  // ---------- TABS ----------
+  const tabBuild = document.getElementById('tab-build');
+  const tabDecode = document.getElementById('tab-decode');
+  const buildPanel = document.getElementById('build-panel');
+  const decodePanel = document.getElementById('decode-panel');
+
+  tabBuild.addEventListener('click', () => {
+    tabBuild.classList.add('active');
+    tabDecode.classList.remove('active');
+    buildPanel.style.display = '';
+    decodePanel.style.display = 'none';
+  });
+  tabDecode.addEventListener('click', () => {
+    tabDecode.classList.add('active');
+    tabBuild.classList.remove('active');
+    decodePanel.style.display = '';
+    buildPanel.style.display = 'none';
+    if (!decodeInput.value) decodeInput.value = '0 9 * * 1-5';
+    updateDecode();
+  });
+
+  // init
+  updateBuild();
+})();
+</script>
+</body>
+</html>
