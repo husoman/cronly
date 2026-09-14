@@ -2,7 +2,7 @@
 
 A small tool for building and reading cron schedules — no more guessing cron syntax or pasting expressions into random websites to figure out what they do.
 
-**[Live demo →](https://cronly-lac.vercel.app/)**
+**[Live demo](https://cronly-lac.vercel.app/)**
 
 ## What it does
 
